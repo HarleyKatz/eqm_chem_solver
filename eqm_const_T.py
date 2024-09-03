@@ -88,8 +88,8 @@ data_dict = {
     },
 }
 
-def get_ne(ion_fracs,el_dict):
-    ne = 0.0
+def get_ne(ion_fracs,el_dict,min_ne=1e-10):
+    ne = min_ne
     # Loop over elements
     for el in el_dict.keys():
         n_el = el_dict[el]["n"]
@@ -98,16 +98,16 @@ def get_ne(ion_fracs,el_dict):
         ne += n_el * (ion_fracs[el]["new"]*electron_number).sum()
     return ne
 
-def reduce_xion(dX):
+def reduce_xion(dX,min_xion):
     dX[dX < min_xion] = min_xion
     return dX / dX.sum()
 
 # Parameters
-redshift = 4.5
+redshift = 12.
 min_xion = 1e-10
 metallicity = 1e-2
 nH = 1e-3
-TK = 2e4 # Temperature of the gas [K]
+TK = 1e4 # Temperature of the gas [K]
 ddt = 3.15e7 * 1e9  # 10^9 years -- initial time step
 
 # initialize the UVB rates
@@ -133,8 +133,8 @@ ion_fracs = {
 for el in ion_fracs.keys():
     ion_fracs[el]["old"][-1] = 1.0
     ion_fracs[el]["new"][-1] = 1.0
-    ion_fracs[el]["old"] = reduce_xion(ion_fracs[el]["old"])
-    ion_fracs[el]["new"] = reduce_xion(ion_fracs[el]["new"])
+    ion_fracs[el]["old"] = reduce_xion(ion_fracs[el]["old"],min_xion)
+    ion_fracs[el]["new"] = reduce_xion(ion_fracs[el]["new"],min_xion)
 
 """
 Run the model
@@ -173,8 +173,8 @@ while True:
         atomic_number = data_dict[el]["atomic_number"]
 
         # set dx_new and dx_old
-        dx_new = ion_fracs[el]["new"]
-        dx_old = ion_fracs[el]["old"]
+        dx_new = np.copy(ion_fracs[el]["new"])
+        dx_old = np.copy(ion_fracs[el]["old"])
 
         for im in range(n_ions):
             """
@@ -215,10 +215,10 @@ while True:
             #! Update
             """
             #!  The update
-            dx_new[im] = (cr*ddt + dx_new[im])/(1.+de*ddt)  
+            dx_new[im] = (cr*ddt + dx_new[im])/(1. + de*ddt)  
 
             # Make sure ions sum to 1
-            dx_new = reduce_xion(dx_new)
+            dx_new = reduce_xion(dx_new,min_xion)
 
             # Get the new electron fraction
             ne = get_ne(ion_fracs,data_dict)
@@ -227,9 +227,9 @@ while True:
             #! Convergence
             """
             # X% rule
-            if (np.abs(dx_new[im] - dx_old[im])/dx_old[im]) > 0.1:
+            if (np.abs(dx_new[im] - dx_old[im])/(dx_old[im] + min_xion)) > 0.1:
                 # If the timestep is too long, half the timestep
-                ddt = ddt / 2.
+                ddt /= 2.
                 x_percent_rule = False
                 print(el,im,ddt)
                 break
@@ -240,10 +240,10 @@ while True:
             break
 
         # If step completed for element, set "new" to dx_new
-        ion_fracs[el]["new"] = dx_new 
+        ion_fracs[el]["new"] = np.copy(dx_new)
 
         # Check if the model has converged
-        if max(np.abs((dx_new - dx_old))/(dx_old + min_xion)) > 1e-2:
+        if max(np.abs(dx_new - dx_old)/(dx_old + min_xion)) > 1e-2:
             convergence_bool = False
 
     # Check if the model has converged
@@ -260,7 +260,7 @@ while True:
 
     # Loop over elements and copy new and old
     for el in ion_fracs.keys():
-        ion_fracs[el]["old"] = ion_fracs[el]["new"]
+        ion_fracs[el]["old"] = np.copy(ion_fracs[el]["new"])
 
     # update the success counters
     success_counter += 1
