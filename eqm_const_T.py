@@ -190,7 +190,7 @@ while True:
             if (im > 0): 
                 cr += col_ion_func(TK, im-1, el) * ne * dx_new[im-1] 
 
-            #! Photoionization from the less excited state
+            #! Photoionization from the less excited state [UVB]
             if (im > 0): 
                 cr += pi_uvb_rates[im-1] * dx_new[im-1] 
 
@@ -207,7 +207,7 @@ while True:
             if (im > 0):
                 de += rec_func(TK, im) * ne   
 
-            #! Photoionization 
+            #! Photoionization [UVB]
             if (im < atomic_number): 
                 de += pi_uvb_rates[im] 
 
